@@ -25,6 +25,10 @@ function LandingPage() {
     );
 }
 
+import TermsConditions from './pages/TermsConditions';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import Disclaimer from './pages/Disclaimer';
+
 function App() {
     const navigate = useNavigate();
     
@@ -32,6 +36,9 @@ function App() {
         <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/chatinterface" element={<ChatInterface onBack={() => navigate('/')} />} />
+            <Route path="/terms" element={<TermsConditions />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/disclaimer" element={<Disclaimer />} />
         </Routes>
     );
 }
