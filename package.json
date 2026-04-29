@@ -1,0 +1,19 @@
+{
+  "name": "finance-ai-agent",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "vite": "^8.0.10"
+  },
+  "dependencies": {
+    "@splinetool/react-spline": "^4.1.0",
+    "react-router-dom": "^7.14.2"
+  }
+}
