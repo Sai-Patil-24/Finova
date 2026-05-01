@@ -6,8 +6,8 @@ const GUIDE_STEPS = [
         desc: "Choose specialized AI agents for your specific financial needs.",
         details: [
             "Data Agent: Connect and analyze your financials.",
-            "Risk Agent: Evaluate market volatility and exposure.",
-            "Investment Agent: Strategy & Nifty 50 allocation."
+            "News Agent: Get real-time market updates and trends.",
+            "Price Agent: Real-time price tracking for Gold, Crypto & Stocks."
         ],
         icon: (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -96,7 +96,7 @@ function Guide() {
                                     <strong>Data</strong> <span>• Live insights from your linked financials.</span>
                                 </div>
                                 <div className="agent-detail-item">
-                                    <strong>Risk</strong> <span>• Real-time volatility & risk score assessment.</span>
+                                    <strong>News</strong> <span>• Real-time market headlines & updates.</span>
                                 </div>
                                 <div className="agent-detail-item">
                                     <strong>Invest</strong> <span>• Wealth strategies & Nifty 50 allocation.</span>
@@ -106,6 +106,9 @@ function Guide() {
                                 </div>
                                 <div className="agent-detail-item">
                                     <strong>Learn</strong> <span>• Educational insights into complex finance.</span>
+                                </div>
+                                <div className="agent-detail-item">
+                                    <strong>Price</strong> <span>• Real-time assets price tracking & history.</span>
                                 </div>
                             </div>
                         </div>

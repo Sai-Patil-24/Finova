@@ -75,10 +75,9 @@ const IconData = () => (
     <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
   </svg>
 );
-const IconRisk = () => (
+const IconNews = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8z"/>
   </svg>
 );
 const IconInvest = () => (
@@ -87,16 +86,21 @@ const IconInvest = () => (
     <polyline points="17 6 23 6 23 12"/>
   </svg>
 );
-const IconDecision = () => (
+const IconPrice = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/>
-    <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
   </svg>
 );
 const IconLearn = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+  </svg>
+);
+const IconAdvice = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/>
+    <line x1="9" y1="22" x2="15" y2="22"/>
   </svg>
 );
 const IconPaperclip = () => (
@@ -115,9 +119,10 @@ const IconBack = () => (
 const AGENTS = [
   { id: 'data',       label: 'Data',       fullLabel: 'Data Agent',       Icon: IconData },
   { id: 'analysis',   label: 'Analysis',   fullLabel: 'Analysis Agent',   Icon: IconAnalysis },
-  { id: 'risk',       label: 'Risk',       fullLabel: 'Risk Agent',       Icon: IconRisk },
+  { id: 'advice',     label: 'Advice',     fullLabel: 'Advice Agent',     Icon: IconAdvice },
+  { id: 'news',       label: 'News',       fullLabel: 'News Agent',       Icon: IconNews },
   { id: 'investment', label: 'Invest',     fullLabel: 'Investment Agent', Icon: IconInvest },
-  { id: 'decision',   label: 'Decision',   fullLabel: 'Decision Agent',   Icon: IconDecision },
+  { id: 'price',      label: 'Price',      fullLabel: 'Price Agent',      Icon: IconPrice },
   { id: 'learning',   label: 'Learn',      fullLabel: 'Learning Agent',   Icon: IconLearn },
 ];
 
@@ -130,17 +135,18 @@ const NAV_ITEMS = [
 
 const BADGE_COLORS = {
   invest: { bg: 'rgba(0,112,243,0.12)', color: '#60a5fa' },
-  risk:   { bg: 'rgba(121,40,202,0.12)', color: '#a78bfa' },
+  news:   { bg: 'rgba(121,40,202,0.12)', color: '#a78bfa' },
   budget: { bg: 'rgba(80,227,194,0.12)', color: '#50e3c2' },
   tax:    { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
   learn:  { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
+  advice: { bg: 'rgba(236,72,153,0.12)', color: '#f472b6' },
 };
 
 const HISTORY_ITEMS = [
   { id: 1, group: 'Today',     badge: 'invest', title: 'Should I buy HDFC Bank now?',     agent: 'Investment' },
-  { id: 2, group: 'Today',     badge: 'risk',   title: 'What is my risk tolerance score?', agent: 'Risk' },
+  { id: 2, group: 'Today',     badge: 'news',   title: 'Latest market news for today?', agent: 'News' },
   { id: 3, group: 'Yesterday', badge: 'budget', title: 'Budget breakdown for April',        agent: 'Analysis' },
-  { id: 4, group: 'Yesterday', badge: 'tax',    title: 'Old vs new tax regime',             agent: 'Decision' },
+  { id: 4, group: 'Yesterday', badge: 'tax',    title: 'Current price of Gold 24k?',      agent: 'Price' },
   { id: 5, group: 'This week', badge: 'learn',  title: 'How does SIP compound over 10yr?', agent: 'Learning' },
   { id: 6, group: 'This week', badge: 'invest', title: 'Nifty 50 allocation strategy',      agent: 'Investment' },
 ];
@@ -154,7 +160,7 @@ const FEATURE_CARDS = [
 const MARQUEE_ITEMS = [
   'SIP Calculator', 'Lumpsum Calculator', 'FD Returns', 'RD Planner',
   'Loan EMI', 'CAGR Estimator', 'Tax Estimator', 'Portfolio Analysis',
-  'Risk Profiling', 'Debt vs Equity', 'Retirement Planner', 'Goal Tracker',
+  'Market News', 'Debt vs Equity', 'Retirement Planner', 'Goal Tracker',
 ];
 
 function getGreeting() {
@@ -168,9 +174,10 @@ function getContextLine(agent) {
   const lines = {
     data:       'Connect your financial data to unlock personalized insights.',
     analysis:   'Portfolio is up +2.3% this week. Equity drag detected in mid-cap allocation.',
-    risk:       'Risk score last updated 12 days ago. Market volatility has changed.',
-    investment: 'NIFTY50 closed +0.8%. 3 instruments aligned with your risk profile.',
-    decision:   'You have 2 pending scenarios awaiting simulation.',
+    advice:     'Expert financial guidance tailored to your long-term goals.',
+    news:       'Latest headlines: Nifty 50 hits record high. Fed outlook remains stable.',
+    investment: 'NIFTY50 closed +0.8%. 3 instruments aligned with your investment profile.',
+    price:      'Gold is trading at ₹72,450 (+0.4%). BTC is at $64,200.',
     learning:   'Based on your sessions: you focus most on investment strategies.',
   };
   return lines[agent] || 'Ask anything about your finances.';

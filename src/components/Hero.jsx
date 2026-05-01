@@ -17,7 +17,7 @@ function Hero({ onGetStarted }) {
             </h1>
             <p className="hero-subtitle">
                 The AI-powered finance platform to grow your wealth smarter,
-                optimize decisions in real time, and assist for financial future.
+                track prices in real time, and assist for financial future.
             </p>
             <button className="btn-hero" onClick={onGetStarted}>
                 Getting Started
