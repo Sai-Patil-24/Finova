@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
-
+import { runFinanceWorkflow } from '../utils/financeWorkflow';
 
 
 
@@ -113,10 +113,16 @@ const IconBack = () => (
     <path d="M19 12H5M12 19l-7-7 7-7"/>
   </svg>
 );
+const IconAuto = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M12 20v2"/>
+  </svg>
+);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const AGENTS = [
+  { id: 'auto',       label: 'Auto',       fullLabel: 'Smart Router',     Icon: IconAuto },
   { id: 'data',       label: 'Data',       fullLabel: 'Data Agent',       Icon: IconData },
   { id: 'analysis',   label: 'Analysis',   fullLabel: 'Analysis Agent',   Icon: IconAnalysis },
   { id: 'advice',     label: 'Advice',     fullLabel: 'Advice Agent',     Icon: IconAdvice },
@@ -140,6 +146,7 @@ const BADGE_COLORS = {
   tax:    { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24' },
   learn:  { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
   advice: { bg: 'rgba(236,72,153,0.12)', color: '#f472b6' },
+  auto:   { bg: 'rgba(255,255,255,0.12)', color: '#ffffff' },
 };
 
 const HISTORY_ITEMS = [
@@ -172,6 +179,7 @@ function getGreeting() {
 
 function getContextLine(agent) {
   const lines = {
+    auto:       'Smart routing enabled. I will select the best agent(s) for your query.',
     data:       'Connect your financial data to unlock personalized insights.',
     analysis:   'Portfolio is up +2.3% this week. Equity drag detected in mid-cap allocation.',
     advice:     'Expert financial guidance tailored to your long-term goals.',
@@ -192,13 +200,50 @@ function VoiceWave() {
   );
 }
 
+// ─── Typing Indicator ────────────────────────────────────────────────────────
+function TypingIndicator() {
+  return (
+    <div className="ci-bubble-row ci-bubble-row--ai">
+      <div className="ci-bubble-avatar">F</div>
+      <div className="ci-bubble ci-bubble--ai ci-bubble--typing">
+        <span className="ci-dot" />
+        <span className="ci-dot" />
+        <span className="ci-dot" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Simple markdown renderer ─────────────────────────────────────────────────
+function renderMarkdown(text) {
+  // Bold **text**
+  let html = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Inline code `code`
+  html = html.replace(/`([^`]+)`/g, '<code class="ci-inline-code">$1</code>');
+  // Headers ### ## #
+  html = html.replace(/^### (.+)$/gm, '<h4 class="ci-md-h4">$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3 class="ci-md-h3">$1</h3>');
+  html = html.replace(/^# (.+)$/gm, '<h2 class="ci-md-h2">$1</h2>');
+  // Bullet list items
+  html = html.replace(/^[-*] (.+)$/gm, '<li class="ci-md-li">$1</li>');
+  html = html.replace(/(<li[^>]*>.*<\/li>)/gs, '<ul class="ci-md-ul">$1</ul>');
+  // Line breaks
+  html = html.replace(/\n/g, '<br/>');
+  return html;
+}
+
 // ─── Chat Bubble ─────────────────────────────────────────────────────────────
 function ChatBubble({ msg }) {
   const isUser = msg.role === 'user';
   return (
     <div className={`ci-bubble-row ${isUser ? 'ci-bubble-row--user' : 'ci-bubble-row--ai'}`}>
       {!isUser && <div className="ci-bubble-avatar">F</div>}
-      <div className={`ci-bubble ${isUser ? 'ci-bubble--user' : 'ci-bubble--ai'}`}>{msg.content}</div>
+      <div className={`ci-bubble ${isUser ? 'ci-bubble--user' : 'ci-bubble--ai'}`}>
+        {isUser
+          ? <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+          : <div className="ci-md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+        }
+      </div>
     </div>
   );
 }
@@ -224,9 +269,10 @@ function Marquee() {
 export default function ChatInterface({ onBack }) {
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [activeNav, setActiveNav]   = useState('home');
-  const [activeAgent, setActiveAgent] = useState('data');
+  const [activeAgent, setActiveAgent] = useState('auto');
   const [inputVal, setInputVal]     = useState('');
   const [messages, setMessages]     = useState([]);
+  const [isLoading, setIsLoading]   = useState(false);
   const [recording, setRecording]   = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
   const [mobileDrawer, setMobileDrawer] = useState(false);
@@ -246,8 +292,11 @@ export default function ChatInterface({ onBack }) {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [messages, isLoading]); // Also scroll when loading state changes
 
   useEffect(() => {
     const handler = () => setContextMenu(null);
@@ -255,20 +304,35 @@ export default function ChatInterface({ onBack }) {
     return () => window.removeEventListener('click', handler);
   }, []);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const text = inputVal.trim();
-    if (!text) return;
-    setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: text }]);
+    if (!text || isLoading) return;
+    const userMsgId = Date.now();
+    setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text }]);
     setInputVal('');
-    setTimeout(() => {
-      const agent = AGENTS.find(a => a.id === activeAgent);
+    setIsLoading(true);
+
+    try {
+      const workflowResult = await runFinanceWorkflow(text, activeAgent);
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         role: 'ai',
-        content: `[${agent.fullLabel}] Processing: "${text}". Connect your AI backend to receive real insights.`,
+        content: workflowResult.response,
       }]);
-    }, 900);
-  }, [inputVal, activeAgent]);
+    } catch (error) {
+      console.error('Chat Error:', error);
+      const isConnErr = error.message?.includes('fetch') || error.message?.includes('Failed to fetch');
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: 'ai',
+        content: isConnErr
+          ? '⚠️ Cannot connect to the Finova backend. Make sure the Python server is running:\n\n```\ncd backend\npython app.py\n```'
+          : `⚠️ ${error.message || 'An unexpected error occurred. Please try again.'}`,
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [inputVal, activeAgent, isLoading]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -456,6 +520,7 @@ export default function ChatInterface({ onBack }) {
           ) : (
             <div className="ci-messages">
               {messages.map(msg => <ChatBubble key={msg.id} msg={msg} />)}
+              {isLoading && <TypingIndicator />}
               <div ref={messagesEndRef} />
             </div>
           )}
@@ -465,11 +530,11 @@ export default function ChatInterface({ onBack }) {
         <div className="ci-input-zone">
           {/* Agent chips — above input */}
           <div className="ci-agent-chips">
-            {AGENTS.map(({ id, label, Icon }) => (
+            {AGENTS.filter(a => a.id !== 'auto').map(({ id, label, Icon }) => (
               <button
                 key={id}
                 className={`ci-agent-chip ${activeAgent === id ? 'ci-agent-chip--active' : ''}`}
-                onClick={() => setActiveAgent(id)}
+                onClick={() => setActiveAgent(activeAgent === id ? 'auto' : id)}
               >
                 <Icon /> {label}
               </button>
@@ -510,7 +575,7 @@ export default function ChatInterface({ onBack }) {
                 <button className={`ci-mic-btn ${recording ? 'ci-mic-btn--active' : ''}`} onClick={toggleVoice} title="Voice input">
                   {recording ? <VoiceWave /> : <IconMic />}
                 </button>
-                <button className="ci-send-btn" onClick={handleSend} disabled={!inputVal.trim()}>
+                <button className="ci-send-btn" onClick={handleSend} disabled={!inputVal.trim() || isLoading}>
                   <IconSend />
                 </button>
               </div>
