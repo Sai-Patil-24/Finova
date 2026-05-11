@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { supabase } from '../utils/supabaseClient';
 import { runFinanceWorkflow } from '../utils/financeWorkflow';
 
 
@@ -14,6 +15,11 @@ const IconHome = () => (
 const IconTools = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+  </svg>
+);
+const IconUsage = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
   </svg>
 );
 const IconAnalysis = () => (
@@ -134,7 +140,7 @@ const AGENTS = [
 
 const NAV_ITEMS = [
   { id: 'home',     label: 'Home',     Icon: IconHome },
-  { id: 'tools',    label: 'Tools',    Icon: IconTools },
+  { id: 'usage',    label: 'Usage',    Icon: IconUsage },
   { id: 'analysis', label: 'Analysis', Icon: IconAnalysis },
   { id: 'history',  label: 'History',  Icon: IconHistory },
 ];
@@ -235,14 +241,35 @@ function renderMarkdown(text) {
 // ─── Chat Bubble ─────────────────────────────────────────────────────────────
 function ChatBubble({ msg }) {
   const isUser = msg.role === 'user';
+  const [stepsOpen, setStepsOpen] = useState(false);
   return (
     <div className={`ci-bubble-row ${isUser ? 'ci-bubble-row--user' : 'ci-bubble-row--ai'}`}>
       {!isUser && <div className="ci-bubble-avatar">F</div>}
-      <div className={`ci-bubble ${isUser ? 'ci-bubble--user' : 'ci-bubble--ai'}`}>
-        {isUser
-          ? <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-          : <div className="ci-md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
-        }
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: '80%' }}>
+        {/* Tool steps indicator */}
+        {!isUser && msg.steps && msg.steps.length > 0 && (
+          <button
+            className="ci-steps-toggle"
+            onClick={() => setStepsOpen(o => !o)}
+          >
+            <span className="ci-steps-icon">⚙️</span>
+            <span>{msg.steps.length} source{msg.steps.length > 1 ? 's' : ''} used</span>
+            <span className="ci-steps-chevron">{stepsOpen ? '▲' : '▼'}</span>
+          </button>
+        )}
+        {stepsOpen && (
+          <div className="ci-steps-list">
+            {msg.steps.map((s, i) => (
+              <div key={i} className="ci-step-item">{s}</div>
+            ))}
+          </div>
+        )}
+        <div className={`ci-bubble ${isUser ? 'ci-bubble--user' : 'ci-bubble--ai'}`}>
+          {isUser
+            ? <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+            : <div className="ci-md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+          }
+        </div>
       </div>
     </div>
   );
@@ -265,8 +292,40 @@ function Marquee() {
   );
 }
 
+// ─── Usage tracking (localStorage, resets daily) ─────────────────────────────
+const USAGE_KEY = 'finova_usage';
+const CHATS_KEY  = 'finova_chats';
+const LIMITS = { llm: 500, web_search: 200, stock_price: 300, news: 150 };
+
+function getTodayKey() { return new Date().toISOString().slice(0, 10); }
+
+function loadUsage() {
+  try {
+    const raw = localStorage.getItem(USAGE_KEY);
+    if (!raw) return { date: getTodayKey(), llm: 0, web_search: 0, stock_price: 0, news: 0 };
+    const parsed = JSON.parse(raw);
+    if (parsed.date !== getTodayKey()) return { date: getTodayKey(), llm: 0, web_search: 0, stock_price: 0, news: 0 };
+    return parsed;
+  } catch { return { date: getTodayKey(), llm: 0, web_search: 0, stock_price: 0, news: 0 }; }
+}
+
+function saveUsage(usage) {
+  try { localStorage.setItem(USAGE_KEY, JSON.stringify(usage)); } catch {}
+}
+
+function incrementUsage(toolsCalled = [], node = '') {
+  const u = loadUsage();
+  u.llm = (u.llm || 0) + 1;
+  // Use fuzzy matching for tool names
+  if (toolsCalled.some(t => t.toLowerCase().includes('search'))) u.web_search = (u.web_search || 0) + 1;
+  if (toolsCalled.some(t => t.toLowerCase().includes('stock') || t.toLowerCase().includes('price'))) u.stock_price = (u.stock_price || 0) + 1;
+  if (toolsCalled.some(t => t.toLowerCase().includes('news'))) u.news = (u.news || 0) + 1;
+  saveUsage(u);
+  return u;
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function ChatInterface({ onBack }) {
+export default function ChatInterface({ onBack, session }) {
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [activeNav, setActiveNav]   = useState('home');
   const [activeAgent, setActiveAgent] = useState('auto');
@@ -277,6 +336,14 @@ export default function ChatInterface({ onBack }) {
   const [contextMenu, setContextMenu] = useState(null);
   const [mobileDrawer, setMobileDrawer] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
+  const [webSearchActive, setWebSearchActive] = useState(false);  // Search the web toggle
+  const [usageData, setUsageData] = useState(loadUsage);          // Usage panel data
+  const [history, setHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CHATS_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
 
   const fileInputRef   = useRef(null);
   const messagesEndRef = useRef(null);
@@ -285,18 +352,57 @@ export default function ChatInterface({ onBack }) {
 
   const isHomeState = messages.length === 0;
 
+  // Extract user info from session
+  const user = session?.user;
+  const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'User';
+  const userEmail = user?.email || '';
+  const userAvatar = user?.user_metadata?.avatar_url || '';
+  const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    onBack();
+  };
+
+  // Persist history to localStorage
+  useEffect(() => {
+    localStorage.setItem(CHATS_KEY, JSON.stringify(history));
+  }, [history]);
+
+  // Persist current session messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      const chatId = localStorage.getItem('finova_active_chat_id') || 'default';
+      localStorage.setItem(`finova_msgs_${chatId}`, JSON.stringify(messages));
+    }
+  }, [messages]);
+
+  // Load active chat on mount
+  useEffect(() => {
+    const chatId = localStorage.getItem('finova_active_chat_id') || 'default';
+    const saved = localStorage.getItem(`finova_msgs_${chatId}`);
+    if (saved) setMessages(JSON.parse(saved));
+  }, []);
+
   // Auto-collapse sidebar after 2.5s
   useEffect(() => {
     autoCollapseRef.current = setTimeout(() => setSidebarExpanded(false), 2500);
     return () => clearTimeout(autoCollapseRef.current);
   }, []);
 
+  // Reset nav to home when sidebar contracts
+  useEffect(() => {
+    if (!sidebarExpanded) {
+      setActiveNav('home');
+    }
+  }, [sidebarExpanded]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
     return () => clearTimeout(timer);
-  }, [messages, isLoading]); // Also scroll when loading state changes
+  }, [messages, isLoading]);
 
   useEffect(() => {
     const handler = () => setContextMenu(null);
@@ -304,20 +410,67 @@ export default function ChatInterface({ onBack }) {
     return () => window.removeEventListener('click', handler);
   }, []);
 
+  const textareaRef = useRef(null);
+
+  // Auto-expand textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [inputVal]);
+
   const handleSend = useCallback(async () => {
     const text = inputVal.trim();
     if (!text || isLoading) return;
+    
+    // Reset textarea height
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    
+    // Get active chat id
+    let activeChatId = localStorage.getItem('finova_active_chat_id');
+    
+    // Update history title if first message
+    if (messages.length === 0) {
+      activeChatId = Date.now().toString();
+      const newChat = {
+        id: activeChatId,
+        title: text.length > 30 ? text.slice(0, 30) + '...' : text,
+        date: new Date().toISOString(),
+        group: 'Today',
+        badge: activeAgent === 'auto' ? 'auto' : activeAgent
+      };
+      setHistory(prev => [newChat, ...prev]);
+      localStorage.setItem('finova_active_chat_id', activeChatId);
+    } else if (!activeChatId) {
+      activeChatId = Date.now().toString();
+      localStorage.setItem('finova_active_chat_id', activeChatId);
+    }
+
     const userMsgId = Date.now();
     setMessages(prev => [...prev, { id: userMsgId, role: 'user', content: text }]);
     setInputVal('');
     setIsLoading(true);
 
     try {
-      const workflowResult = await runFinanceWorkflow(text, activeAgent);
+      // Pass the session.user.id and activeChatId (as session_id) to the backend
+      const workflowResult = await runFinanceWorkflow(
+        text, 
+        activeAgent, 
+        webSearchActive, 
+        session?.user?.id, 
+        activeChatId
+      );
+      const newUsage = incrementUsage(
+        workflowResult.usage?.tools_called || [],
+        workflowResult.usage?.node || ''
+      );
+      setUsageData(newUsage);
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         role: 'ai',
         content: workflowResult.response,
+        steps: workflowResult.steps || [],
       }]);
     } catch (error) {
       console.error('Chat Error:', error);
@@ -326,13 +479,14 @@ export default function ChatInterface({ onBack }) {
         id: Date.now() + 1,
         role: 'ai',
         content: isConnErr
-          ? '⚠️ Cannot connect to the Finova backend. Make sure the Python server is running:\n\n```\ncd backend\npython app.py\n```'
+          ? '⚠️ Cannot connect to the Finova backend. Make sure the Python server is running:\n\n```\ncd backend\npython main.py\n```'
           : `⚠️ ${error.message || 'An unexpected error occurred. Please try again.'}`,
+        steps: [],
       }]);
     } finally {
       setIsLoading(false);
     }
-  }, [inputVal, activeAgent, isLoading]);
+  }, [inputVal, activeAgent, isLoading, webSearchActive, messages.length, session]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -351,7 +505,30 @@ export default function ChatInterface({ onBack }) {
     r.start(); recognitionRef.current = r; setRecording(true);
   };
 
-  const handleNewChat = () => { setMessages([]); setInputVal(''); setAttachedFiles([]); };
+  const handleNewChat = () => { 
+    setMessages([]); 
+    setInputVal(''); 
+    setAttachedFiles([]); 
+    localStorage.removeItem('finova_active_chat_id');
+  };
+
+  const loadChat = (chatId) => {
+    const saved = localStorage.getItem(`finova_msgs_${chatId}`);
+    if (saved) {
+      setMessages(JSON.parse(saved));
+      localStorage.setItem('finova_active_chat_id', chatId.toString());
+    }
+  };
+
+  const deleteChat = (e, chatId) => {
+    e.stopPropagation();
+    setHistory(prev => prev.filter(c => c.id !== chatId));
+    localStorage.removeItem(`finova_msgs_${chatId}`);
+    const active = localStorage.getItem('finova_active_chat_id');
+    if (active === chatId.toString()) {
+      handleNewChat();
+    }
+  };
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -425,50 +602,116 @@ export default function ChatInterface({ onBack }) {
           ))}
         </nav>
 
-        {/* Search */}
-        <div className="ci-sb-search">
-          <span className="ci-nav-icon"><IconSearch /></span>
-          <input className="ci-sb-search-input" placeholder="Search history…" />
-        </div>
-
-        {/* History */}
-        <div className="ci-history">
-          <div className="ci-history-scroll">
-            {['Today','Yesterday','This week'].map(group => {
-              const items = HISTORY_ITEMS.filter(i => i.group === group);
-              if (!items.length) return null;
-              return (
-                <div key={group}>
-                  <p className="ci-history-group">{group}</p>
-                  {items.map(item => (
-                    <div key={item.id} className="ci-history-item" onMouseLeave={() => setContextMenu(null)}>
-                      <span className="ci-badge" style={{ background: BADGE_COLORS[item.badge].bg, color: BADGE_COLORS[item.badge].color }}>
-                        {item.badge}
-                      </span>
-                      <span className="ci-history-title">{item.title}</span>
-                      <button className="ci-history-more" onClick={e => { e.stopPropagation(); setContextMenu(contextMenu === item.id ? null : item.id); }}>
-                        <IconMore />
-                      </button>
-                      {contextMenu === item.id && (
-                        <div className="ci-context-menu">
-                          <button className="ci-context-item">Rename</button>
-                          <button className="ci-context-item ci-context-item--danger">Delete</button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
+        {/* Search (only in history view) */}
+        {activeNav !== 'usage' && (
+          <div className="ci-sb-search">
+            <span className="ci-nav-icon"><IconSearch /></span>
+            <input className="ci-sb-search-input" placeholder="Search history…" />
           </div>
-        </div>
+        )}
 
-        {/* Bottom: close / back */}
+        {/* Usage Panel */}
+        {activeNav === 'usage' && (
+          <div className="ci-usage-panel">
+            <p className="ci-usage-title">Usage & Credits</p>
+            <p className="ci-usage-subtitle">Track your remaining daily credits</p>
+            
+            <div className="ci-usage-list">
+              {[
+                { key: 'llm',         label: '🤖 AI Intelligence', color: '#818cf8' },
+                { key: 'web_search',  label: '🔍 Web Research',     color: '#34d399' },
+                { key: 'stock_price', label: '📈 Market Data',      color: '#fbbf24' },
+                { key: 'news',        label: '📰 News Access',      color: '#f472b6' },
+              ].map(({ key, label, color }) => {
+                const used = usageData[key] || 0;
+                const limit = LIMITS[key];
+                const remaining = Math.max(limit - used, 0);
+                const pct = Math.min((used / limit) * 100, 100);
+                const isExhausted = remaining === 0;
+
+                return (
+                  <div key={key} className={`ci-usage-card ${isExhausted ? 'ci-usage-card--exhausted' : ''}`}>
+                    <div className="ci-usage-info">
+                      <span className="ci-usage-name">{label}</span>
+                      <span className="ci-usage-status">
+                        {isExhausted ? 'Exhausted' : `${remaining} left`}
+                      </span>
+                    </div>
+                    <div className="ci-usage-bar-container">
+                      <div className="ci-usage-bar-track">
+                        <div 
+                          className="ci-usage-bar-progress" 
+                          style={{ width: `${pct}%`, backgroundColor: color }} 
+                        />
+                      </div>
+                    </div>
+                    <div className="ci-usage-footer">
+                      <span>Used: {used}</span>
+                      <span>Limit: {limit}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="ci-usage-note">
+              <p>Limits reset automatically every 24 hours.</p>
+            </div>
+          </div>
+        )}
+
+        {/* History (hidden when Usage tab is active) */}
+        {activeNav !== 'usage' && (
+          <div className="ci-history">
+            <div className="ci-history-scroll">
+              {['Today','Yesterday','This week'].map(group => {
+                const items = history.filter(i => i.group === group);
+                if (!items.length) return null;
+                return (
+                  <div key={group}>
+                    <p className="ci-history-group">{group}</p>
+                    {items.map(item => (
+                      <div key={item.id} className="ci-history-item" onClick={() => loadChat(item.id)} onMouseLeave={() => setContextMenu(null)}>
+                        <span className="ci-badge" style={{ background: BADGE_COLORS[item.badge]?.bg || BADGE_COLORS.auto.bg, color: BADGE_COLORS[item.badge]?.color || BADGE_COLORS.auto.color }}>
+                          {item.badge}
+                        </span>
+                        <span className="ci-history-title">{item.title}</span>
+                        <button className="ci-history-more" onClick={e => { e.stopPropagation(); setContextMenu(contextMenu === item.id ? null : item.id); }}>
+                          <IconMore />
+                        </button>
+                        {contextMenu === item.id && (
+                          <div className="ci-context-menu">
+                            <button className="ci-context-item" onClick={(e) => deleteChat(e, item.id)}>Delete</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Bottom: User profile + logout */}
         <div className="ci-sb-bottom">
-          <button className="ci-nav-item" onClick={onBack} title="Exit to landing">
-            <span className="ci-nav-icon"><IconClose /></span>
-            <span className="ci-nav-label">Exit</span>
-          </button>
+          <div className="ci-sb-divider" />
+          <div className="ci-sb-user">
+            <div className="ci-sb-user-avatar">
+              {userAvatar ? (
+                <img src={userAvatar} alt="Avatar" className="ci-sb-user-avatar-img" />
+              ) : (
+                <span className="ci-sb-user-initials">{userInitials}</span>
+              )}
+            </div>
+            <div className="ci-sb-user-info">
+              <span className="ci-sb-user-name">{userName}</span>
+              <span className="ci-sb-user-email">{userEmail}</span>
+            </div>
+            <button className="ci-sb-logout-btn" onClick={handleLogout} title="Log out">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -513,7 +756,7 @@ export default function ChatInterface({ onBack }) {
 
               {/* Greeting */}
               <div className="ci-greeting">
-                <p className="ci-greeting-sub">Good {getGreeting()}, Alex</p>
+                <p className="ci-greeting-sub">Good {getGreeting()}, {userName}</p>
                 <h1 className="ci-greeting-title">Can I help you with anything?</h1>
               </div>
             </div>
@@ -564,6 +807,7 @@ export default function ChatInterface({ onBack }) {
             )}
             <div className="ci-input-row">
               <textarea
+                ref={textareaRef}
                 className="ci-textarea"
                 rows={1}
                 placeholder={`Message AI Chat...`}
@@ -580,12 +824,18 @@ export default function ChatInterface({ onBack }) {
                 </button>
               </div>
             </div>
-            {/* Additional Actions row like in the image */}
+            {/* Additional Actions row */}
             <div className="ci-input-actions">
                <button className="ci-action-pill" onClick={() => fileInputRef.current?.click()}>
                  <IconPaperclip /> Upload
                </button>
-               <button className="ci-action-pill"><IconSearch /> Search the web</button>
+               <button
+                 className={`ci-action-pill ${webSearchActive ? 'ci-action-pill--active' : ''}`}
+                 onClick={() => setWebSearchActive(v => !v)}
+                 title={webSearchActive ? 'Web search ON — click to disable' : 'Click to enable web search'}
+               >
+                 <IconSearch /> Search the web
+               </button>
             </div>
           </div>
 

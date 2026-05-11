@@ -11,7 +11,7 @@ function About() {
                 <div className="ai-mockup-wrapper">
                     <div className="ai-mockup-glow"></div>
                     <div className="ai-mockup">
-                        <img src="/interface.png" alt="AI Interface" className="ai-mockup-img" />
+                        <img src="/interface (2).png" alt="AI Interface" className="ai-mockup-img" />
                     </div>
                 </div>
             </div>

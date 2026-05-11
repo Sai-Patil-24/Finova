@@ -5,9 +5,9 @@ const GUIDE_STEPS = [
         title: "Select Your Agent",
         desc: "Choose specialized AI agents for your specific financial needs.",
         details: [
-            "Data Agent: Connect and analyze your financials.",
-            "News Agent: Get real-time market updates and trends.",
-            "Price Agent: Real-time price tracking for Gold, Crypto & Stocks."
+            "Analysis Agent: Deep spending & portfolio trends.",
+            "News Agent: Real-time market headlines & updates.",
+            "Advice Agent: Personalized educational strategies."
         ],
         icon: (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -16,19 +16,16 @@ const GUIDE_STEPS = [
         )
     },
     {
-        title: "Voice & Text Input",
-        desc: "Type your query or use voice commands for a hands-free experience.",
+        title: "Smart Resource Tracking",
+        desc: "Monitor your AI credits and tool usage in real-time.",
         details: [
-            "Voice Waveform: Real-time visual feedback.",
-            "Natural Language: Chat like you're talking to a friend.",
-            "Instant Responses: Ultra-low latency processing."
+            "Usage Panel: Track daily API consumption.",
+            "Live Indicators: See active search & data tool status.",
+            "Auto-Reset: Limits refresh every 24 hours."
         ],
         icon: (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-                <line x1="8" y1="23" x2="16" y2="23"/>
+                <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
             </svg>
         )
     },
@@ -36,8 +33,8 @@ const GUIDE_STEPS = [
         title: "Analyze Documents",
         desc: "Upload financial statements. Finova extracts insights instantly.",
         details: [
-            "Multiple Formats: PDF, CSV, XLSX, and Images.",
-            "Data Extraction: Automatic field identification.",
+            "Multiple Formats: png, jpg, CSV, XLSX, and Images.",
+            "Source Transparency: See exactly which tools were used.",
             "Trend Detection: Spot anomalies in your records."
         ],
         icon: (
@@ -47,12 +44,12 @@ const GUIDE_STEPS = [
         )
     },
     {
-        title: "Track & Growth",
+        title: "Session Persistence",
         desc: "Review your chat history and monitor your financial evolution.",
         details: [
-            "History Groups: Today, Yesterday, and This week.",
-            "Smart Badges: Categorized by agent type.",
-            "Full Control: Rename or delete sessions easily."
+            "History Sync: Your chats are saved locally.",
+            "Management: Rename, delete, or switch sessions.",
+            "Auto-Resume: Pick up exactly where you left off."
         ],
         icon: (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -134,17 +131,17 @@ function Guide() {
                         </div>
                     </div>
 
-                    {/* Web Search - Square */}
+                    {/* Usage Tracking - Square */}
                     <div className="bento-card">
                         <div className="bento-card-bg"></div>
                         <div className="bento-card-content">
                             <div className="bento-icon-wrap">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                    <path d="M12 20v-6M6 20V10M18 20V4"/>
                                 </svg>
                             </div>
-                            <h3 className="bento-title">Web Search</h3>
-                            <p className="bento-desc">Real-time market data and financial news directly from the web.</p>
+                            <h3 className="bento-title">Real-time Usage</h3>
+                            <p className="bento-desc">Monitor your daily credits and resource consumption with our live tracking dashboard.</p>
                         </div>
                     </div>
 
@@ -162,8 +159,10 @@ function Guide() {
                                 Securely upload statements for instant trend extraction.
                             </p>
                             <div className="file-type-list">
-                                <div className="file-type-tag">PDF</div>
+                                <div className="file-type-tag">PNG</div>
+                                <div className="file-type-tag">JPG</div>
                                 <div className="file-type-tag">CSV</div>
+                                <div className="file-type-tag">DOCX</div>
                                 <div className="file-type-tag">XLSX</div>
                             </div>
                         </div>

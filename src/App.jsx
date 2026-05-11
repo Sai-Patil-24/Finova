@@ -1,4 +1,5 @@
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Features from './components/Features';
@@ -7,14 +8,25 @@ import Guide from './components/Guide';
 import CTA from './components/CTA';
 import Footer from './components/Footer';
 import ChatInterface from './pages/ChatInterface';
+import Auth from './pages/Auth';
+import TermsConditions from './pages/TermsConditions';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import Disclaimer from './pages/Disclaimer';
+import { supabase } from './utils/supabaseClient';
 
-function LandingPage() {
+function LandingPage({ session }) {
     const navigate = useNavigate();
-    const handleGetStarted = () => navigate('/chatinterface');
+    const handleGetStarted = () => {
+        if (session) {
+            navigate('/chatinterface');
+        } else {
+            navigate('/auth');
+        }
+    };
 
     return (
         <>
-            <Navbar onGetStarted={handleGetStarted} />
+            <Navbar onGetStarted={handleGetStarted} session={session} />
             <Hero onGetStarted={handleGetStarted} />
             <Features />
             <About />
@@ -25,17 +37,46 @@ function LandingPage() {
     );
 }
 
-import TermsConditions from './pages/TermsConditions';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import Disclaimer from './pages/Disclaimer';
-
 function App() {
     const navigate = useNavigate();
+    const [session, setSession] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        // Get initial session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setLoading(false);
+        });
+
+        // Listen for auth changes
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    if (loading) {
+        return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-white">Loading...</div>;
+    }
     
     return (
         <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/chatinterface" element={<ChatInterface onBack={() => navigate('/')} />} />
+            <Route path="/" element={<LandingPage session={session} />} />
+            <Route path="/auth" element={session ? <Navigate to="/chatinterface" /> : <Auth />} />
+            <Route 
+                path="/chatinterface" 
+                element={
+                    session ? (
+                        <ChatInterface onBack={() => navigate('/')} session={session} />
+                    ) : (
+                        <Navigate to="/auth" />
+                    )
+                } 
+            />
             <Route path="/terms" element={<TermsConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/disclaimer" element={<Disclaimer />} />

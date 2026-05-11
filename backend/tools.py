@@ -7,53 +7,99 @@ from duckduckgo_search import DDGS
 @tool
 def search_tool(query: str) -> str:
     """
-    Search the web using DuckDuckGo.
-    :param query: The search query.
-    :return: Search results as text.
+    Search the web for general information and latest news.
+    Args:
+        query: The search query string.
     """
     try:
         with DDGS() as ddgs:
-            results = [r for r in ddgs.text(query, max_results=3)]
+            # Using text search with a bit more results for better coverage
+            results = list(ddgs.text(query, max_results=5))
             if not results:
-                return f"No search results found for '{query}'."
-            return "\n".join([f"{r['title']}: {r['body']}" for r in results])
+                return f"No search results found for '{query}'. The search engine might be temporarily unavailable."
+            
+            output = []
+            for r in results:
+                output.append(f"Title: {r.get('title', 'No Title')}\nSource: {r.get('href', 'No URL')}\nSnippet: {r.get('body', 'No Content')}\n")
+            
+            return "\n---\n".join(output)
     except Exception as e:
         return f"Search error for '{query}': {str(e)}"
 arxiv_tool = ArxivQueryRun(api_wrapper=ArxivAPIWrapper())
 wiki_tool = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper())
 
-# Custom tool for stock price
 @tool
 def get_stock_price(ticker: str) -> str:
     """
     Fetches the current stock price for a given ticker symbol.
-    :param ticker: The stock ticker symbol in ALL CAPS (e.g., "AAPL", "GOOGL", "TSLA", "MSFT"). 
-                  DO NOT pass the company name; only the ticker.
-    :return: The current stock price as string
+    For Indian stocks use NSE suffix: RELIANCE.NS, TCS.NS, INFY.NS
+    For BSE use: RELIANCE.BO
+    For US stocks: AAPL, GOOGL, TSLA
     """
     try:
-        # Ensure ticker is uppercase and stripped
         ticker = ticker.strip().upper()
         stock = yf.Ticker(ticker)
         hist = stock.history(period="1d")
-        
-        if hist.empty:
-            return f"No price data found for ticker '{ticker}'. Please ensure it is a valid stock symbol."
-            
-        price = hist["Close"].iloc[-1]
-        return f"The current price for {ticker} is ${price:.2f}"
-    except Exception as e:
-        return f"Error fetching stock price for '{ticker}': {str(e)}"
 
-# Simulated tools for various agents
+        if hist.empty:
+            return f"No price data found for '{ticker}'. Please check the ticker symbol."
+
+        price = hist["Close"].iloc[-1]
+        currency = "₹" if ticker.endswith((".NS", ".BO")) else "$"
+        info = stock.info
+        name = info.get("longName") or info.get("shortName") or ticker
+        change = hist["Close"].iloc[-1] - hist["Open"].iloc[-1]
+        pct = (change / hist["Open"].iloc[-1]) * 100
+        direction = "▲" if change >= 0 else "▼"
+        return (
+            f"{name} ({ticker}): {currency}{price:,.2f} "
+            f"{direction} {abs(pct):.2f}% today"
+        )
+    except Exception as e:
+        return f"Error fetching price for '{ticker}': {str(e)}"
+
 @tool
 def get_financial_news(topic: str) -> str:
     """
-    Retrieves the latest financial news regarding a specific topic.
-    :param topic: The topic of the news (e.g., "Tech Stocks", "Federal Reserve")
-    :return: A summary of recent news.
+    Retrieves the latest financial news for a topic, with a focus on Indian markets.
+    Args:
+        topic: The financial topic, company name, or stock symbol.
     """
-    return search_tool.invoke(f"latest financial news {topic}")
+    try:
+        clean_topic = topic.strip().upper()
+
+        # Try yfinance news for ticker symbols (Indian: .NS/.BO or short alpha)
+        if clean_topic.isalpha() and len(clean_topic) <= 10:
+            # Try NSE ticker first
+            for suffix in [".NS", ".BO", ""]:
+                ticker = yf.Ticker(clean_topic + suffix)
+                news = ticker.news
+                if news:
+                    formatted = []
+                    for item in news[:5]:
+                        title = item.get('title', '')
+                        pub = item.get('publisher', '')
+                        link = item.get('link', '')
+                        formatted.append(f"• {title}\n  Source: {pub} | {link}")
+                    return f"Latest news for {clean_topic}:\n\n" + "\n\n".join(formatted)
+
+        # Indian-biased web search
+        india_bias = "India BSE NSE Nifty Sensex SEBI RBI"
+        search_query = f"{topic} {india_bias} latest news"
+        search_results = search_tool.func(search_query)
+
+        if "No search results" in search_results or not search_results.strip():
+            # Final fallback: Nifty 50 index news
+            nifty_news = yf.Ticker("^NSEI").news
+            if nifty_news:
+                formatted = []
+                for item in nifty_news[:3]:
+                    formatted.append(f"• {item.get('title', '')}\n  Source: {item.get('publisher', '')}")
+                return "Indian Market Update (Nifty 50):\n\n" + "\n\n".join(formatted)
+
+        return search_results
+    except Exception as e:
+        return f"Error fetching news for '{topic}': {str(e)}"
 
 @tool
 def analyze_portfolio(portfolio_str: str) -> str:
