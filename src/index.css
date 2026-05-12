@@ -1618,10 +1618,6 @@ body {
     .ci-main-header { display: none; }
 }
 
-.ci-spline-fallback {
-    display: none;
-}
-
 
 
 /* Greeting */
@@ -2109,7 +2105,6 @@ body {
         object-fit: contain;
     }
 
-    .ci-spline-wrap { width: 200px; height: 200px; }
 
     .ci-greeting-title { font-size: 1.5rem; }
 
@@ -2397,6 +2392,45 @@ body {
 }
 .ci-action-pill--active svg {
     opacity: 1 !important;
+}
+
+/* ===================== STREAMING FEATURE ===================== */
+
+/* Streaming cursor — blinking caret at the end of streaming text */
+.ci-stream-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: linear-gradient(180deg, #a78bfa, #818cf8);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    border-radius: 1px;
+    animation: ci-cursor-blink 0.8s ease-in-out infinite;
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.5);
+}
+
+@keyframes ci-cursor-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0; }
+}
+
+/* Streaming bubble — subtle left-border glow while tokens arrive */
+.ci-bubble--streaming {
+    border-left: 2px solid rgba(129, 140, 248, 0.5);
+    box-shadow: inset 2px 0 12px rgba(129, 140, 248, 0.06);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Streaming toggle pill — active state (lightning bolt theme) */
+.ci-action-pill--stream-active {
+    background: rgba(52, 211, 153, 0.1) !important;
+    border-color: rgba(52, 211, 153, 0.35) !important;
+    color: #34d399 !important;
+}
+
+.ci-action-pill--stream-active svg {
+    opacity: 1 !important;
+    filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.4));
 }
 
 /* ===================== TOOL STEPS INDICATOR ===================== */

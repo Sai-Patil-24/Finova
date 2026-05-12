@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { runFinanceWorkflow } from '../utils/financeWorkflow';
+import { runFinanceWorkflow, runFinanceWorkflowStream } from '../utils/financeWorkflow';
 
 
 
@@ -122,6 +122,11 @@ const IconBack = () => (
 const IconAuto = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M12 20v2"/>
+  </svg>
+);
+const IconStream = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
   </svg>
 );
 
@@ -264,10 +269,13 @@ function ChatBubble({ msg }) {
             ))}
           </div>
         )}
-        <div className={`ci-bubble ${isUser ? 'ci-bubble--user' : 'ci-bubble--ai'}`}>
+        <div className={`ci-bubble ${isUser ? 'ci-bubble--user' : 'ci-bubble--ai'}${msg.isStreaming ? ' ci-bubble--streaming' : ''}`}>
           {isUser
             ? <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-            : <div className="ci-md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+            : <>
+                <div className="ci-md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                {msg.isStreaming && <span className="ci-stream-cursor" />}
+              </>
           }
         </div>
       </div>
@@ -337,6 +345,7 @@ export default function ChatInterface({ onBack, session }) {
   const [mobileDrawer, setMobileDrawer] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [webSearchActive, setWebSearchActive] = useState(false);  // Search the web toggle
+  const [streamingEnabled, setStreamingEnabled] = useState(true);  // Streaming toggle
   const [usageData, setUsageData] = useState(loadUsage);          // Usage panel data
   const [history, setHistory] = useState(() => {
     try {
@@ -348,6 +357,7 @@ export default function ChatInterface({ onBack, session }) {
   const fileInputRef   = useRef(null);
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const abortStreamRef = useRef(null);
   const autoCollapseRef = useRef(null);
 
   const isHomeState = messages.length === 0;
@@ -452,8 +462,72 @@ export default function ChatInterface({ onBack, session }) {
     setInputVal('');
     setIsLoading(true);
 
+    // ── STREAMING MODE ──
+    if (streamingEnabled) {
+      const aiMsgId = Date.now() + 1;
+      // Add an empty AI bubble that will fill up with streamed tokens
+      setMessages(prev => [...prev, {
+        id: aiMsgId,
+        role: 'ai',
+        content: '',
+        steps: [],
+        isStreaming: true,
+      }]);
+
+      const abort = runFinanceWorkflowStream(
+        text,
+        activeAgent,
+        webSearchActive,
+        session?.user?.id,
+        activeChatId,
+        {
+          onSteps: (steps, usage) => {
+            const newUsage = incrementUsage(
+              usage?.tools_called || [],
+              usage?.node || ''
+            );
+            setUsageData(newUsage);
+            setMessages(prev => prev.map(m =>
+              m.id === aiMsgId ? { ...m, steps } : m
+            ));
+          },
+          onToken: (token) => {
+            setMessages(prev => prev.map(m =>
+              m.id === aiMsgId ? { ...m, content: m.content + token } : m
+            ));
+          },
+          onDone: () => {
+            setMessages(prev => prev.map(m =>
+              m.id === aiMsgId ? { ...m, isStreaming: false } : m
+            ));
+            setIsLoading(false);
+            abortStreamRef.current = null;
+          },
+          onError: (error) => {
+            console.error('Stream Error:', error);
+            const isConnErr = error.message?.includes('fetch') || error.message?.includes('Failed to fetch');
+            setMessages(prev => prev.map(m =>
+              m.id === aiMsgId
+                ? {
+                    ...m,
+                    content: isConnErr
+                      ? '⚠️ Cannot connect to the Finova backend. Make sure the Python server is running:\n\n```\ncd backend\npython main.py\n```'
+                      : `⚠️ ${error.message || 'An unexpected error occurred.'}`,
+                    isStreaming: false,
+                  }
+                : m
+            ));
+            setIsLoading(false);
+            abortStreamRef.current = null;
+          },
+        }
+      );
+      abortStreamRef.current = abort;
+      return;
+    }
+
+    // ── NORMAL (non-streaming) MODE ──
     try {
-      // Pass the session.user.id and activeChatId (as session_id) to the backend
       const workflowResult = await runFinanceWorkflow(
         text, 
         activeAgent, 
@@ -486,7 +560,7 @@ export default function ChatInterface({ onBack, session }) {
     } finally {
       setIsLoading(false);
     }
-  }, [inputVal, activeAgent, isLoading, webSearchActive, messages.length, session]);
+  }, [inputVal, activeAgent, isLoading, webSearchActive, streamingEnabled, messages.length, session]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -506,9 +580,11 @@ export default function ChatInterface({ onBack, session }) {
   };
 
   const handleNewChat = () => { 
+    if (abortStreamRef.current) { abortStreamRef.current(); abortStreamRef.current = null; }
     setMessages([]); 
     setInputVal(''); 
     setAttachedFiles([]); 
+    setIsLoading(false);
     localStorage.removeItem('finova_active_chat_id');
   };
 
@@ -835,6 +911,13 @@ export default function ChatInterface({ onBack, session }) {
                  title={webSearchActive ? 'Web search ON — click to disable' : 'Click to enable web search'}
                >
                  <IconSearch /> Search the web
+               </button>
+               <button
+                 className={`ci-action-pill ${streamingEnabled ? 'ci-action-pill--stream-active' : ''}`}
+                 onClick={() => setStreamingEnabled(v => !v)}
+                 title={streamingEnabled ? 'Streaming ON — click to disable' : 'Click to enable streaming'}
+               >
+                 <IconStream /> Streaming
                </button>
             </div>
           </div>
