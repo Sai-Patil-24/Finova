@@ -3,7 +3,7 @@
  * Calls the Python LangGraph backend for Finova Finance AI.
  */
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const runFinanceWorkflow = async (userInput, selectedAgent = 'auto', webSearch = false, userId = null, sessionId = null) => {
   try {
